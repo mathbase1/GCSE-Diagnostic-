@@ -176,7 +176,7 @@
   </head>
   <body>
     <!-- Main content is initially inert/covered by the password overlay. -->
-    <div class="container" id="app" aria-hidden="true">
+    <div class="container" id="app" aria-hidden="true" inert>
       <section class="card" aria-live="polite">
         <header>
           <p class="subtitle">BCG</p>
@@ -212,73 +212,104 @@
       // =====================
       // Configuration
       // =====================
-      // 🔗 Set your destination links here:
-      // Replace the placeholders below with the correct pages for each button.
-      // You can use full URLs (e.g. "https://example.com/non-calc") or relative paths (e.g. "non-calc.html").
-      const NON_CALC_URL = "https://mathbase1.github.io/GCSE-diag-nc/"; // <-- Put the Non‑Calculator page link here
-      const CALC_URL     = "https://mathbase1.github.io/GCSE-diag-c/";     // <-- Put the Calculator page link here
-
-      // 🔐 Password (not shown on the page). The required password is: bcg123
-      // The string is kept in code and only compared on submit; it is never displayed.
-      const REQUIRED_PASSWORD = "123";
+      const NON_CALC_URL = "https://mathbase1.github.io/term1/";
+      const CALC_URL = "https://mathbase1.github.io/term3/";
+      const REQUIRED_PASSWORD = "bcg123";
+      const AUTH_STORAGE_KEY = "bcg-auth";
 
       // =====================
-      // Behavior
+      // Behaviour
       // =====================
       const app = document.getElementById('app');
       const lock = document.getElementById('lock');
       const form = document.getElementById('passForm');
       const input = document.getElementById('password');
       const msg = document.getElementById('msg');
+      let authenticated = false;
 
-      function unlocked() {
+      function readStoredAuthentication() {
+        try {
+          return sessionStorage.getItem(AUTH_STORAGE_KEY) === '1';
+        } catch (error) {
+          return false;
+        }
+      }
+
+      function storeAuthentication() {
+        try {
+          sessionStorage.setItem(AUTH_STORAGE_KEY, '1');
+        } catch (error) {
+          // The page still unlocks even when browser storage is unavailable.
+        }
+      }
+
+      function unlockPage() {
+        authenticated = true;
         lock.classList.add('hidden');
+        lock.setAttribute('aria-hidden', 'true');
         app.removeAttribute('aria-hidden');
+        app.removeAttribute('inert');
+        msg.textContent = '';
       }
 
-      // Keep the page unlocked for the current tab session once authenticated
-      if (sessionStorage.getItem('bcg-auth') === '1') {
-        unlocked();
+      if (readStoredAuthentication()) {
+        unlockPage();
       } else {
-        input.focus();
+        window.requestAnimationFrame(() => input.focus());
       }
 
-      form.addEventListener('submit', function (e) {
-        e.preventDefault();
-        const ok = input.value === REQUIRED_PASSWORD;
-        if (ok) {
-          sessionStorage.setItem('bcg-auth', '1');
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+
+        const enteredPassword = input.value.trim();
+        if (enteredPassword === REQUIRED_PASSWORD) {
+          storeAuthentication();
           input.value = '';
-          unlocked();
-        } else {
-          msg.textContent = 'Incorrect password. Please try again.';
-          form.classList.remove('shake');
-          // restart shake animation
-          void form.offsetWidth; 
-          form.classList.add('shake');
-          input.select();
+          unlockPage();
+          return;
         }
+
+        msg.textContent = 'Incorrect password. Please try again.';
+        form.classList.remove('shake');
+        void form.offsetWidth;
+        form.classList.add('shake');
+        input.focus();
+        input.select();
       });
 
-      // Allow pressing Enter anywhere to submit while overlay is visible
-      document.addEventListener('keydown', (ev) => {
-        if (!lock.classList.contains('hidden') && ev.key === 'Enter') {
-          form.requestSubmit();
-        }
+      input.addEventListener('input', function () {
+        msg.textContent = '';
       });
 
-      // Button navigation with safety guard if links haven't been set yet
-      function goTo(url, label) {
-        const isSet = typeof url === 'string' && url && url !== 'REPLACE_WITH_NON_CALCULATOR_URL' && url !== 'REPLACE_WITH_CALCULATOR_URL';
-        if (isSet) {
-          window.location.href = url;
-        } else {
-          alert(`Link for "${label}" is not set yet.\n\nOpen this file, find the lines:\n  const NON_CALC_URL = "REPLACE_WITH_NON_CALCULATOR_URL"\n  const CALC_URL     = "REPLACE_WITH_CALCULATOR_URL"\n…and replace them with the correct links.`);
+      function goTo(url) {
+        if (!authenticated) {
+          input.focus();
+          return;
         }
+        window.location.assign(url);
       }
 
-      document.getElementById('nonCalcBtn').addEventListener('click', () => goTo(NON_CALC_URL, 'Non‑Calculator Diagnostic'));
-      document.getElementById('calcBtn').addEventListener('click', () => goTo(CALC_URL, 'Calculator Diagnostic'));
+      document.getElementById('nonCalcBtn').addEventListener('click', function () {
+        goTo(NON_CALC_URL);
+      });
+
+      document.getElementById('calcBtn').addEventListener('click', function () {
+        goTo(CALC_URL);
+      });
+
+      // Disable the standard right-click context menu.
+      document.addEventListener('contextmenu', function (event) {
+        event.preventDefault();
+      });
+
+      // Disable Ctrl+U (and the equivalent Command+U shortcut on macOS).
+      document.addEventListener('keydown', function (event) {
+        const isViewSourceShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'u';
+        if (isViewSourceShortcut) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
     </script>
   </body>
 </html>
